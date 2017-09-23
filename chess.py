@@ -53,34 +53,35 @@ class Board:
 		for x in range(8):
 			self.board[6][x] = Pawn("host",(x,6))
 
+		self.guest_pieces = [self.board[i][j] for i in range(2) for j in range(8)]
+		self.host_pieces = [self.board[6+i][j] for i in range(2) for j in range(8)]
+		
+		self.guest_king = self.board[0][4]
+		self.host_king = self.board[7][4]
+		
 		self.selected_piece = None
 		self.selected_image = ImageTk.PhotoImage(Image.open("res/selected.png").resize((image_size,image_size), Image.ANTIALIAS))
 
 		self.move_coords = []
 
-		pprint(self.board)
 		self.redraw()
 		if user_player == "guest":
 			move = link.get_move()
 			self.move_piece(move[0],move[1])
 			self.redraw()
 
-	def check_moveset(self,piece,moveset):
-		moveset = [x for x in moveset if x[0]>=0 and x[0]<len(self.board[0]) and x[1]>=0 and x[1]<len(self.board)]
-		moveset = [x for x in moveset if self.board[x[1]][x[0]] == None or self.board[x[1]][x[0]].owner != user_player]
-		return moveset
 
-	def pieceAtLoc(self,pos):
+	def pieceAtLoc(self,piece,pos):
 		if not (pos[0]>=0 and pos[0]<len(self.board[0]) and pos[1]>=0 and pos[1]<len(self.board)):
 			return "out"
 
 		if self.board[pos[1]][pos[0]] == None:
 			return "none"
 		
-		if self.board[pos[1]][pos[0]].owner == user_player:
+		if self.board[pos[1]][pos[0]].owner == piece.owner:
 			return "friendly"
 
-		if self.board[pos[1]][pos[0]].owner != user_player:
+		if self.board[pos[1]][pos[0]].owner != piece.owner:
 			return "enemy"
 
 	def redraw(self):
@@ -119,7 +120,6 @@ class Board:
 			self.move_coords = []
 			self.redraw()
 			root.update()
-			pprint(self.board)
 			
 			link.send_move(old_pos,new_pos)
 			
@@ -130,10 +130,60 @@ class Board:
 
 	def move_piece(self,old_pos,new_pos):
 		piece_to_move = self.board[old_pos[1]][old_pos[0]]
+		kill_piece = self.board[new_pos[1]][new_pos[0]]
+		if kill_piece != None:
+			if kill_piece.owner == "host":
+				self.host_pieces.remove(kill_piece)
+			else:
+				self.guest_pieces.remove(kill_piece)
 		self.board[old_pos[1]][old_pos[0]] = None
 		self.board[new_pos[1]][new_pos[0]] = piece_to_move
 		piece_to_move.move(new_pos)
+
+
+
+	def check_moveset(self,piece,moveset):
+		if piece.owner == user_player:
+			moveset = [x for x in moveset if not self.will_checkmate(piece.position,x)]
+		return moveset
 					
+
+	def will_checkmate(self,old_pos,new_pos):
+		old_piece = self.board[old_pos[1]][old_pos[0]]
+		new_piece = self.board[new_pos[1]][new_pos[0]]
+
+		self.board[old_pos[1]][old_pos[0]] = None
+		self.board[new_pos[1]][new_pos[0]] = old_piece
+
+		if user_player == "host":
+			enemy_units = self.guest_pieces
+			friend_king = self.host_king
+		else:
+			enemy_units = self.host_pieces
+			friend_king = self.guest_king
+
+		king_space = friend_king.position
+		if type(old_piece) == King:
+			king_space = new_pos
+		for piece in enemy_units:
+			if piece.position == new_pos: #Piece already got jumped
+				continue
+			if king_space in piece.getMoveset():
+				self.board[old_pos[1]][old_pos[0]] = old_piece
+				self.board[new_pos[1]][new_pos[0]] = new_piece
+				return True
+
+		self.board[old_pos[1]][old_pos[0]] = old_piece
+		self.board[new_pos[1]][new_pos[0]] = new_piece
+		return False
+
+
+
+		
+
+
+
+
 
 
 #Abstract class 
@@ -153,6 +203,7 @@ class GamePiece:
 
 	def __repr__(self):
 		return self.__str__()
+
 
 class Knight(GamePiece):
 	def __init__(self,owner,position):
@@ -179,7 +230,9 @@ class Knight(GamePiece):
 		moveset.append((self.position[0]-2,self.position[1]+1))
 		moveset.append((self.position[0]-2,self.position[1]-1))
 		
-		moveset = [x for x in moveset if game_board.pieceAtLoc(x) == "none" or game_board.pieceAtLoc(x) == "enemy"]
+		moveset = [x for x in moveset if game_board.pieceAtLoc(self,x) == "none" or game_board.pieceAtLoc(self,x) == "enemy"]
+
+		moveset = game_board.check_moveset(self,moveset)
 
 		return moveset
 
@@ -198,18 +251,20 @@ class Pawn(GamePiece):
 	def getMoveset(self):
 		moveset = []
 
-		direction = -1 if user_player == "host" else 1
+		direction = -1 if self.owner == "host" else 1
 
-		if game_board.pieceAtLoc((self.position[0],self.position[1]+1*direction)) == "none":
+		if game_board.pieceAtLoc(self,(self.position[0],self.position[1]+1*direction)) == "none":
 			moveset.append((self.position[0],self.position[1]+1*direction))
-			if self.first_move and game_board.pieceAtLoc((self.position[0],self.position[1]+2*direction)) == "none":
+			if self.first_move and game_board.pieceAtLoc(self,(self.position[0],self.position[1]+2*direction)) == "none":
 				moveset.append((self.position[0],self.position[1]+2*direction))
 
-		if game_board.pieceAtLoc((self.position[0]+1,self.position[1]+1*direction)) == "enemy":
+		if game_board.pieceAtLoc(self,(self.position[0]+1,self.position[1]+1*direction)) == "enemy":
 			moveset.append((self.position[0]+1,self.position[1]+1*direction))
 	
-		if game_board.pieceAtLoc((self.position[0]-1,self.position[1]+1*direction)) == "enemy":
+		if game_board.pieceAtLoc(self,(self.position[0]-1,self.position[1]+1*direction)) == "enemy":
 			moveset.append((self.position[0]-1,self.position[1]+1*direction))
+
+		moveset = game_board.check_moveset(self,moveset)
 
 		return moveset
 	
@@ -246,7 +301,7 @@ class Rook(GamePiece):
 			keep_going = True
 			while keep_going:
 				new_pos = (self.position[0]+(count*mod[0]),self.position[1]+(count*mod[1]))
-				mov_piece = game_board.pieceAtLoc(new_pos)
+				mov_piece = game_board.pieceAtLoc(self,new_pos)
 				if mov_piece == "enemy" or mov_piece == "none":
 					moveset.append(new_pos)
 
@@ -254,6 +309,9 @@ class Rook(GamePiece):
 					keep_going = False
 
 				count+=1
+
+		moveset = game_board.check_moveset(self,moveset)
+
 		return moveset
 
 class Bishop(GamePiece):
@@ -282,7 +340,7 @@ class Bishop(GamePiece):
 			keep_going = True
 			while keep_going:
 				new_pos = (self.position[0]+(count*mod[0]),self.position[1]+(count*mod[1]))
-				mov_piece = game_board.pieceAtLoc(new_pos)
+				mov_piece = game_board.pieceAtLoc(self,new_pos)
 				if mov_piece == "enemy" or mov_piece == "none":
 					moveset.append(new_pos)
 
@@ -290,6 +348,9 @@ class Bishop(GamePiece):
 					keep_going = False
 
 				count+=1
+
+		moveset = game_board.check_moveset(self,moveset)
+
 		return moveset
 	
 
@@ -325,7 +386,7 @@ class Queen(GamePiece):
 			keep_going = True
 			while keep_going:
 				new_pos = (self.position[0]+(count*mod[0]),self.position[1]+(count*mod[1]))
-				mov_piece = game_board.pieceAtLoc(new_pos)
+				mov_piece = game_board.pieceAtLoc(self,new_pos)
 				if mov_piece == "enemy" or mov_piece == "none":
 					moveset.append(new_pos)
 
@@ -333,6 +394,9 @@ class Queen(GamePiece):
 					keep_going = False
 
 				count+=1
+
+		moveset = game_board.check_moveset(self,moveset)
+
 		return moveset
 
 
@@ -364,9 +428,11 @@ class King(GamePiece):
 				]	
 
 		for mod in directions:
-			if game_board.pieceAtLoc((self.position[0]+mod[0],self.position[1]+mod[1])) == "enemy" or game_board.pieceAtLoc((self.position[0]+mod[0],self.position[1]+mod[1])) == "none":
+			if game_board.pieceAtLoc(self,(self.position[0]+mod[0],self.position[1]+mod[1])) == "enemy" or game_board.pieceAtLoc(self,(self.position[0]+mod[0],self.position[1]+mod[1])) == "none":
 				moveset.append((self.position[0]+mod[0],self.position[1]+mod[1]))
 		
+		moveset = game_board.check_moveset(self,moveset)
+
 		return moveset
 
 
@@ -389,7 +455,7 @@ class Link:
 		user_player = "host"
 
 		HOST = ''
-		PORT = 5658
+		PORT = 5768
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.s.bind((HOST, PORT))
 		self.s.listen(1)
@@ -403,7 +469,7 @@ class Link:
 		user_player = "guest"
 
 		HOST = 'localhost'
-		PORT = 5658
+		PORT = 5768
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.s.connect((HOST, PORT))
 
