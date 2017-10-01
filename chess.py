@@ -124,8 +124,20 @@ class Board:
 			link.send_move(old_pos,new_pos)
 			
 			move = link.get_move()
+			
 			self.move_piece(move[0],move[1])
 			self.redraw()
+			
+
+			user_pieces = self.host_pieces if user_player == "host" else self.guest_pieces
+			move_count = 0
+			
+			for piece in user_pieces:
+				move_count += len(piece.getMoveset())
+
+			if move_count == 0:
+				print("CHECKMATE " + user_player)
+
 
 
 	def move_piece(self,old_pos,new_pos):
@@ -455,7 +467,7 @@ class Link:
 		user_player = "host"
 
 		HOST = ''
-		PORT = 5768
+		PORT = 5767
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.s.bind((HOST, PORT))
 		self.s.listen(1)
@@ -469,7 +481,7 @@ class Link:
 		user_player = "guest"
 
 		HOST = 'localhost'
-		PORT = 5768
+		PORT = 5767
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.s.connect((HOST, PORT))
 
