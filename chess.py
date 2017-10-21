@@ -88,7 +88,13 @@ class Board:
 		self.canvas.delete("all")
 		for x in range(len(self.board[0])):
 			for y in range(len(self.board)):
-				if(self.board[y][x] == None):
+				if ((x%2)+y)%2 == 0:
+					self.canvas.create_rectangle(x*image_size,y*image_size,x*image_size + image_size,y*image_size + image_size,fill = "saddlebrown")
+				else:
+					self.canvas.create_rectangle(x*image_size,y*image_size,x*image_size + image_size,y*image_size + image_size,fill = "white")
+					
+
+				if self.board[y][x] == None:
 					continue
 				self.canvas.create_image(x*image_size,y*image_size,image=self.board[y][x].piece_image,anchor="nw")
 
@@ -467,7 +473,7 @@ class Link:
 		user_player = "host"
 
 		HOST = ''
-		PORT = 5767
+		PORT = 5768
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.s.bind((HOST, PORT))
 		self.s.listen(1)
@@ -481,7 +487,7 @@ class Link:
 		user_player = "guest"
 
 		HOST = 'localhost'
-		PORT = 5767
+		PORT = 5768
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.s.connect((HOST, PORT))
 
