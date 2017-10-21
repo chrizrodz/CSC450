@@ -22,6 +22,9 @@ class Board:
 		self.canvas.pack()
 		self.canvas.bind("<Button-1>",self.mouse_action)
 
+		self.turn_text = Label(root,text = "ERROR")
+		self.turn_text.pack()
+
 		self.board = [[None]*8 for i in range(8)]	#Note that the board is a list of lists
 								#This means that the Y coordinates are the first coordinate of board
 								#The X coordinate is the second coordinate of the board
@@ -69,6 +72,9 @@ class Board:
 			move = link.get_move()
 			self.move_piece(move[0],move[1])
 			self.redraw()
+			self.turn_text.config(text='Turn: You (Black')
+		else:
+			self.turn_text.config(text='Turn: You (White)')
 
 
 	def pieceAtLoc(self,piece,pos):
@@ -125,6 +131,7 @@ class Board:
 			self.selected_piece = None
 			self.move_coords = []
 			self.redraw()
+			self.turn_text.config(text='Turn: Opponent')
 			root.update()
 			
 			link.send_move(old_pos,new_pos)
@@ -133,6 +140,9 @@ class Board:
 			
 			self.move_piece(move[0],move[1])
 			self.redraw()
+			n_text = "Turn: You "
+			n_text += "(Black)" if user_player == "guest" else "(White)"
+			self.turn_text.config(text=n_text)
 			
 
 			user_pieces = self.host_pieces if user_player == "host" else self.guest_pieces
