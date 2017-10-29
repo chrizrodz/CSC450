@@ -4,6 +4,9 @@ from PIL import ImageTk, Image
 import os
 import pprint
 from pprint import pprint
+import gen_key
+from Crypto.PublicKey import RSA
+
 
 root = Tk()
 
@@ -63,7 +66,7 @@ class Board:
 		self.host_king = self.board[7][4]
 		
 		self.selected_piece = None
-		self.selected_image = ImageTk.PhotoImage(Image.open("res/selected.png").resize((image_size,image_size), Image.ANTIALIAS))
+		self.selected_image = ImageTk.PhotoImage(Image.open("../res/selected.png").resize((image_size,image_size), Image.ANTIALIAS))
 
 		self.move_coords = []
 
@@ -221,7 +224,7 @@ class GamePiece:
 		self.position = position
 
 	def loadImage(self,im_name):
-		self.piece_image = ImageTk.PhotoImage(Image.open("res/"+im_name+self.owner+".png").resize((image_size,image_size), Image.ANTIALIAS))
+		self.piece_image = ImageTk.PhotoImage(Image.open("../res/"+im_name+self.owner+".png").resize((image_size,image_size), Image.ANTIALIAS))
 	
 	def getMoveset(self):
 		pass
@@ -483,7 +486,7 @@ class Link:
 		user_player = "host"
 
 		HOST = ''
-		PORT = 5768
+		PORT = 5770
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.s.bind((HOST, PORT))
 		self.s.listen(1)
@@ -491,28 +494,58 @@ class Link:
 
 		self.top.destroy()
 
+		self.send_key()
+		self.get_key()
+
 
 	def guest(self):
 		global user_player
 		user_player = "guest"
 
 		HOST = 'localhost'
-		PORT = 5768
+		PORT = 5770
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.s.connect((HOST, PORT))
 
 		self.top.destroy()
 
+		self.get_key()
+		self.send_key()
+	
+	def get_key(self):
+		data = self.connection.recv(1024) if user_player == "host" else self.s.recv(1024)
+		data = data.decode()
+		print(data)
+		o_key = data.split(",")
+		self.other_key = RSA.construct((int(o_key[0]),int(o_key[1])))
+
+	def send_key(self):
+		m_key = gen_key.gen_key(8)
+		self.my_key = RSA.construct((m_key[0],m_key[1],m_key[2]))
+		com = self.connection if user_player == "host" else self.s
+		message = ",".join([str(m_key[0]),str(m_key[1])])
+		message = message.encode()
+		com.sendall(message)
+
+
 	def get_move(self):
 		data = self.connection.recv(1024) if user_player == "host" else self.s.recv(1024)
 		data = data.decode() 
 		pos = data.split(",")
-		pos = [int(x) for x in pos]
+		while True:
+			try:
+				pos = [self.my_key.decrypt(int(x))-2 for x in pos]
+				break
+			except:
+				print("FAIL")
+				pass
+		print(pos)
 		return [(pos[0],pos[1]) , (pos[2],pos[3])]
 
 	def send_move(self,old_pos,new_pos):
 		com = self.connection if user_player == "host" else self.s
-		message = str(old_pos[0]) + "," + str(old_pos[1]) + "," + str(new_pos[0]) + "," + str(new_pos[1])
+		message = str(self.other_key.encrypt(old_pos[0]+2,"")[0]) + "," + str(self.other_key.encrypt(old_pos[1]+2,"")[0]) + "," + str(self.other_key.encrypt(new_pos[0]+2,"")[0]) + "," + str(self.other_key.encrypt(new_pos[1]+2,"")[0])
+		print(message)
 		message = message.encode()
 		com.sendall(message)
 
